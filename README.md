@@ -73,137 +73,57 @@
      }
      ```
 
-### Response Format
-- All responses are JSON
-- The analysis is provided as text in the response, not as a PDF
-- The original file is not modified or returned
+## ✅ Bonus Features Implemented
 
-### Error Handling
-- HTTP 500: Server errors (with error details)
-- HTTP 404: Resource not found
-- HTTP 400: Invalid request format
+### 1. Database Integration (Supabase)
+- Implemented PostgreSQL database connection using Supabase
+- Created `blood_test_results` table to store analysis history
+- All analysis results are now persistently stored with:
+  - Query text
+  - Analysis results
+  - Original filename
+  - Timestamp
+
+### 2. Queue Worker Model (Celery + Redis)
+- Implemented production-grade task queue using Celery and Redis
+- Key features:
+  - Asynchronous task processing
+  - Horizontal scalability
+  - Automatic retries for failed tasks
+  - Result persistence
+- Architecture:
+  - FastAPI endpoints queue analysis tasks
+  - Celery workers process tasks in background
+  - Redis acts as message broker and result backend
+- Endpoint changes:
+  - `/analyze` now returns immediate queue confirmation
+  - Task status can be checked using returned task_id
+
+## Setup for Bonus Features
+
+1. Install additional requirements:
+```bash
+pip install celery redis
+```
+
+2. Start Redis server (required for Celery):
+```bash
+redis-server
+```
+
+3. Start Celery worker (in a separate terminal):
+```bash
+celery -A celery worker --loglevel=info
+```
+
+4. Start FastAPI app as usual:
+```bash
+uvicorn main:app --reload
+```
+
+5. System now runs with:
+- Redis handling task queue
+- Celery processing tasks
+- FastAPI serving API endpoints
 
 [GitHub Repository Link](https://github.com/your-username/blood-test-analyser-debug)
-
----
-
-## ✅ Fixed, Working Code
-This repository now contains a working version of the Blood Test Report Analyser. All major bugs have been fixed and the API is ready for use and testing.
-
-## ✅ Comprehensive README.md
-
-### Bugs Found and How They Were Fixed
-- **PDFLoader Import Error:**
-  - **Bug:** The PDF reading tool was missing the import for `PDFLoader`.
-  - **Fix:** Added `from langchain.document_loaders import PDFLoader` to `tools.py`.
-- **Frontend for API Testing:**
-  - **Bug:** No easy way to test endpoints.
-  - **Fix:** Added a simple HTML frontend at `/` to test all endpoints.
-- **Endpoint Clarity:**
-  - **Bug:** Health check endpoint was `/`, which conflicted with the frontend.
-  - **Fix:** Moved health check to `/health`.
-- **General:**
-  - Other minor bugs and missing instructions were addressed as per the checklist.
-
-### Setup and Usage Instructions
-
-#### 1. Clone the Repository
-```sh
-git clone https://github.com/your-username/blood-test-analyser-debug.git
-cd blood-test-analyser-debug
-```
-
-#### 2. Create and Activate Virtual Environment
-```sh
-python -m venv myenv
-# On Windows:
-myenv\Scripts\activate
-# On Linux/Mac:
-source myenv/bin/activate
-```
-
-#### 3. Install Required Libraries
-```sh
-pip install -r requirements.txt
-```
-**Note:** Ensure you have `langchain` installed for PDFLoader support. If you see errors, run:
-```sh
-pip install langchain
-```
-
-#### 4. Run the FastAPI App
-```sh
-uvicorn main:app --reload
-```
-The app will be available at [http://localhost:8000/](http://localhost:8000/)
-
-#### 5. Access the Frontend
-Open your browser and go to [http://localhost:8000/](http://localhost:8000/) to use the built-in API tester.
-
-### API Documentation
-
-#### **Health Check**
-- **Endpoint:** `GET /health`
-- **Response:** `{ "message": "Blood Test Report Analyser API is running" }`
-
-#### **Analyze Blood Report**
-- **Endpoint:** `POST /analyze`
-- **Form Data:**
-  - `file`: PDF file (required)
-  - `query`: (optional) analysis question
-- **Response:**
-  - `status`: success or error
-  - `query`: the query used
-  - `analysis`: the analysis result
-  - `file_processed`: name of the uploaded file
-
-#### **Frontend**
-- **Endpoint:** `GET /`
-- **Description:** Loads a simple HTML page to test all endpoints interactively.
-
----
-
-## Notes
-- Make sure to import `PDFLoader` in `tools.py`:
-  ```python
-  from langchain.document_loaders import PDFLoader
-  ```
-- If you add new features or fix more bugs, update this README accordingly.
-
-# Project Setup and Execution Guide
-
-## Getting Started
-
-### Install Required Libraries
-```sh
-# Activate your virtual environment first
-.\myenv\Scripts\Activate.ps1
-
-# Install required dependencies
-uv pip install -r requirements.txt
-```
-
-### Running the FastAPI App
-```sh
-
-# Then run the app
-uvicorn main:app --reload
-```
-
-### Example API Usage
-- **Health Check:**
-  - `GET /`
-- **Analyze Blood Report:**
-  - `POST /analyze` with form-data:
-    - `file`: PDF file
-    - `query`: (optional) analysis question
-
-# You're All Not Set!
-🐛 **Debug Mode Activated!** The project has bugs waiting to be squashed - your mission is to fix them and bring it to life.
-
-## Debugging Instructions
-
-1. **Identify the Bug**: Carefully read the code and understand the expected behavior.
-2. **Fix the Bug**: Implement the necessary changes to fix the bug.
-3. **Test the Fix**: Run the project and verify that the bug is resolved.
-4. **Repeat**: Continue this process until all bugs are fixed.

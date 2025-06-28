@@ -1,16 +1,26 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import uuid
 import asyncio
+import psycopg2
+from dotenv import load_dotenv
+from celery import Celery
 
 from crewai import Crew, Process
 from agents import doctor
 from task import help_patients
 
 app = FastAPI(title="Blood Test Report Analyser")
+
+# Import Celery app
+from celery import current_app as celery_app
+
+# Initialize database
+from db_init import create_table
+create_table()
 
 # Add CORS middleware
 app.add_middleware(
@@ -20,6 +30,22 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+def get_db_connection():
+    """Establish database connection"""
+    load_dotenv()
+    try:
+        connection = psycopg2.connect(
+            user=os.getenv("user"),
+            password=os.getenv("password"),
+            host=os.getenv("host"),
+            port=os.getenv("port"),
+            dbname=os.getenv("dbname")
+        )
+        return connection
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        raise
 
 def run_crew(query: str, file_path: str="data/sample.pdf"):
     """To run the whole crew"""
@@ -54,7 +80,8 @@ async def health():
 @app.post("/analyze")
 async def analyze_blood_report(
     file: UploadFile = File(...),
-    query: str = Form(default="Summarise my Blood Test Report")
+    query: str = Form(default="Summarise my Blood Test Report"),
+    background_tasks: BackgroundTasks = None
 ):
     """Analyze blood test report and provide comprehensive health recommendations"""
     
@@ -75,15 +102,14 @@ async def analyze_blood_report(
         if query=="" or query is None:
             query = "Summarise my Blood Test Report"
             
-        # Process the blood report with all specialists
-        response = run_crew(query=query.strip(), file_path=file_path)
+        # Queue the analysis task
+        task = app.celery.send_task('analyze_task', args=[query, file_path, file.filename])
         
-        return {
-            "status": "success",
-            "query": query,
-            "analysis": str(response),
-            "file_processed": file.filename
-        }
+        return JSONResponse({
+            "status": "queued",
+            "task_id": task.id,
+            "message": "Analysis request queued successfully"
+        })
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing blood report: {str(e)}")
@@ -96,6 +122,38 @@ async def analyze_blood_report(
             except:
                 pass  # Ignore cleanup errors
 
+# Celery task
+@app.celery.task(name='analyze_task')
+def analyze_task(query, file_path, filename):
+    """Celery task to process blood report"""
+    try:
+        response = run_crew(query=query.strip(), file_path=file_path)
+        
+        # Store results in database
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO blood_test_results 
+                (query, analysis, file_name) 
+                VALUES (%s, %s, %s)
+                """, 
+                (query, str(response), filename))
+            conn.commit()
+        except Exception as e:
+            print(f"Database error: {e}")
+        finally:
+            if conn:
+                conn.close()
+    finally:
+        # Clean up uploaded file
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
